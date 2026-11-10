@@ -35,7 +35,7 @@ GENERAL_KEYS = {
     "exclude_calendars", "exclude_reminder_lists", "theme",
 }
 APP_KEYS = {
-    "name", "kind", "process", "bundle_ids", "match", "color", "only_children",
+    "name", "kind", "process", "bundle_ids", "match", "exclude", "color", "only_children",
     "sender", "sender_sep", "url", "children",
 }
 CHILD_KEYS = {"name", "match", "url", "channel_id"}
@@ -93,6 +93,7 @@ class Source:
     process: str = ""
     bundle_ids: list[str] = field(default_factory=list)
     match: Match | None = None
+    exclude: Match | None = None   # 이 소스에 속해도 여기 걸리면 버린다 (예: 카톡 오픈채팅)
     color: str = "white"
     only_children: bool = False
     sender: str = "title"
@@ -275,6 +276,7 @@ def _source(a: dict, index: int, is_v0: bool, path: Path, text: str) -> Source:
     _check_color(color, name, path, text)
 
     match = _match(a.get("match"), is_v0, f"앱 '{name}'", path, text)
+    exclude = _match(a.get("exclude"), is_v0, f"앱 '{name}'의 exclude", path, text)
 
     children = []
     child_names: set[str] = set()
@@ -288,7 +290,7 @@ def _source(a: dict, index: int, is_v0: bool, path: Path, text: str) -> Source:
 
     return Source(
         name=name, kind=kind, process=str(a.get("process", "")),
-        bundle_ids=list(a.get("bundle_ids", [])), match=match, color=color,
+        bundle_ids=list(a.get("bundle_ids", [])), match=match, exclude=exclude, color=color,
         only_children=bool(a.get("only_children", False)), sender=sender,
         sender_sep=str(a.get("sender_sep", ": ")), url=a.get("url"), children=children,
     )

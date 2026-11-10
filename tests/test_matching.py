@@ -120,3 +120,28 @@ def test_extract_sender_rules():
 def test_match_child_ignores_empty_match():
     src = Source(name="S", children=[Child("C", Match())])  # 빈 match는 아무것도 안 걸림
     assert match_child(src, build_fields("무엇이든", "", "")) is None
+
+
+def test_exclude_drops_matching():
+    # 카톡 전체를 받되 오픈채팅만 제외
+    kakao = Source(name="카카오톡", bundle_ids=["com.kakao.KakaoTalkMac"],
+                   exclude=Match([rule("subtitle", "오픈채팅")]))
+    normal = classify([kakao], "com.kakao.KakaoTalkMac", "홍길동", "랩 동기방", "안녕")
+    assert normal.source == "카카오톡" and normal.drop is False
+    openchat = classify([kakao], "com.kakao.KakaoTalkMac", "낯선사람", "오픈채팅", "광고")
+    assert openchat.source == "카카오톡" and openchat.drop is True
+
+
+def test_exclude_beats_child():
+    # exclude는 하위 항목 매칭보다 먼저 — 걸리면 버린다
+    src = Source(name="카카오톡", bundle_ids=["com.kakao.KakaoTalkMac"],
+                 exclude=Match([rule("any", "오픈채팅")]),
+                 children=[Child("공지방", Match([rule("any", "공지")]))])
+    a = classify([src], "com.kakao.KakaoTalkMac", "공지 오픈채팅", "", "내용")
+    assert a.drop is True and a.child is None
+
+
+def test_no_exclude_is_noop():
+    src = Source(name="카카오톡", bundle_ids=["com.kakao.KakaoTalkMac"])  # exclude 없음
+    a = classify([src], "com.kakao.KakaoTalkMac", "아무개", "", "메시지")
+    assert a.source == "카카오톡" and a.drop is False

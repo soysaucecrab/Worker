@@ -83,6 +83,8 @@ def classify(sources: list[Source], bundle_id: str, title: str, subtitle: str,
         return Assignment(None, None, "", body)
 
     sender, msg_body = extract_sender(src, title, subtitle, body)
+    if src.exclude and src.exclude.matches(fields):
+        return Assignment(src.name, None, sender, msg_body, drop=True)  # 예: 카톡 오픈채팅 제외
     child = match_child(src, fields)
     if child is None:
         if src.only_children:

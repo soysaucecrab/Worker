@@ -54,13 +54,13 @@ def test_enter_collapses_parent():
         app = make_app()
         async with app.run_test(size=(140, 42)) as pilot:
             await wait_ready(app, pilot)
-            # 데모는 카카오톡이 펼쳐진 상태로 시작
-            assert "카카오톡/학생회 집행부" in sources(app)._keys
-            await move_to(app, pilot, "카카오톡")
+            # 데모는 GroovSide가 펼쳐진 상태로 시작
+            assert "GroovSide/Instagram" in sources(app)._keys
+            await move_to(app, pilot, "GroovSide")
             await pilot.press("enter")
             await pilot.pause(0.05)
-            assert "카카오톡/학생회 집행부" not in sources(app)._keys
-            assert not app.state.is_expanded("카카오톡")
+            assert "GroovSide/Instagram" not in sources(app)._keys
+            assert not app.state.is_expanded("GroovSide")
     run(inner())
 
 

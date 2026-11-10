@@ -23,8 +23,8 @@ def test_v1_example_loads():
     assert not cfg.is_v0
     assert [s.name for s in cfg.sources] == ["Slack", "카카오톡", "Discord", "GroovSide", "Instagram", "iCampus"]
     kakao = cfg.sources[1]
-    assert kakao.only_children
-    assert [c.name for c in kakao.children] == ["학생회 집행부", "랩 동기방"]
+    assert not kakao.only_children          # 전부 수신 (오픈채팅은 카톡 앱에서 음소거)
+    assert kakao.children == []             # 지정 방 하위 항목 없음
     assert cfg.show_other_apps is False
     assert cfg.icampus.enabled
     # 정규식 match가 컴파일되었는지 (GroovSide › X)

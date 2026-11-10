@@ -210,6 +210,7 @@ class Table(DataTable):
         super().__init__(show_header=False, cursor_type="row", zebra_stripes=False, **kw)
         self.show_cursor = False
         self._keys: list[str] = []
+        self._sig: tuple | None = None   # 마지막으로 그린 내용의 지문 (안 바뀌면 다시 안 그림)
 
     def on_focus(self):
         self.show_cursor = True
@@ -221,7 +222,15 @@ class Table(DataTable):
         """(key, cells, height) 목록으로 내용을 바꾸되 커서/스크롤을 유지한다.
 
         cursor_key를 주면 그 키의 줄로 커서를 옮긴다 (앱 트리의 선택 유지용).
+
+        내용(키·셀 글자·높이·cursor_key)이 지난번과 같으면 표를 건드리지 않는다.
+        1초마다 호출돼도 바뀐 게 없으면 다시 그리지 않아 스크롤·커서가 유지된다.
         """
+        sig = (cursor_key, tuple((k, h, tuple(str(c) for c in cells)) for k, cells, h in rows))
+        if sig == self._sig:
+            return
+        self._sig = sig
+
         prev_idx = self.cursor_row
         prev_key = self._keys[prev_idx] if 0 <= prev_idx < len(self._keys) else None
         scroll = self.scroll_y
@@ -238,7 +247,10 @@ class Table(DataTable):
         else:
             idx = min(max(prev_idx, 0), len(self._keys) - 1)
         self.move_cursor(row=idx, scroll=False)
-        self.scroll_to(y=scroll, animate=False)
+        # clear() 직후엔 스크롤 가능 높이가 아직 0이라 scroll_to가 안 먹는다.
+        # 레이아웃이 끝난 뒤(call_after_refresh) 복원한다.
+        if scroll:
+            self.call_after_refresh(self.scroll_to, y=scroll, animate=False)
 
 
 class Panel(Vertical):
@@ -312,7 +324,7 @@ class HudApp(App):
         self._node_by_key: dict[str, Node] = {}
         self._icampus_items: list = []
         if demo:
-            self.state = State(expanded={"카카오톡", "GroovSide"}, selected="카카오톡/학생회 집행부")
+            self.state = State(expanded={"GroovSide"}, selected="GroovSide/Instagram")
         else:
             self.state = load_state()
         self.selected = self.state.selected or ALL_KEY

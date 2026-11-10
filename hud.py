@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table as RichTable
@@ -865,7 +866,6 @@ def doctor(cfg: Config) -> int:
             con.print(f"{ok if st == 3 else bad} {label}: {names.get(st, st)}")
 
     con.rule("Claude Code")
-    from pathlib import Path
     settings = Path("~/.claude/settings.json").expanduser()
     installed = settings.exists() and "claude_hook.py" in settings.read_text(encoding="utf-8")
     con.print(f"{ok if installed else bad} ~/.claude/settings.json hook "
@@ -879,7 +879,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(prog="hud", description="알림·일정·할 일·iCampus·Claude Code를 한 화면에")
     ap.add_argument("--demo", action="store_true", help="가짜 데이터로 화면 미리보기")
     ap.add_argument("--doctor", action="store_true", help="권한과 설정 점검")
-    ap.add_argument("--config", type=__import__("pathlib").Path, help="설정 파일 경로 (기본: ~/.hud/config.toml)")
+    ap.add_argument("--config", type=Path, help="설정 파일 경로 (기본: ~/.hud/config.toml)")
     args = ap.parse_args()
     try:
         cfg = load_config(args.config)

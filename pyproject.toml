@@ -1,0 +1,37 @@
+[project]
+name = "hud"
+version = "0.1.0"
+description = "macOS 터미널 알림·일정·할 일·iCampus·Claude Code 대시보드"
+requires-python = ">=3.11"
+dependencies = [
+    "textual>=1.0",
+    "rich",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+# 실제 캘린더·미리알림 데이터는 macOS에서만 동작한다.
+macos = ["pyobjc-framework-EventKit"]
+
+[project.scripts]
+hud = "hud:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["hud", "collectors", "config", "state", "tree", "claude_hook", "install_hooks"]
+
+[tool.pytest.ini_options]
+# 저장소 루트를 import 경로에 넣어 설치 없이도 테스트가 모듈을 찾게 한다.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]

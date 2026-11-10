@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# 가상환경
+.venv/
+venv/
+
+# v0 아카이브 (초기 참고용, 저장소에는 넣지 않음)
+hud-v0.zip
+
+# 임시/상태 파일
+*.tmp
+.hud/

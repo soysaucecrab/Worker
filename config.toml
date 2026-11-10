@@ -31,16 +31,9 @@ name = "카카오톡"
 process = "KakaoTalk"
 bundle_ids = ["com.kakao.KakaoTalkMac"]
 color = "yellow"
-only_children = true
-sender = "body_prefix"             # --dump 결과를 보고 확정 (SPEC 16장 Q1)
-
-  [[apps.children]]
-  name = "학생회 집행부"
-  match = { title = "학생회 집행부" }
-
-  [[apps.children]]
-  name = "랩 동기방"
-  match = { title = "랩 동기방" }
+sender = "body_prefix"             # 보낸 사람 표시 방식 — --dump로 확정 (SPEC 16장 Q1)
+# 오픈채팅은 카톡 앱에서 음소거 → 알림이 안 와서 자연히 빠짐. 나머지 방은 전부 수신.
+# (특정 방만 보고 싶으면 only_children=true 로 바꾸고 아래처럼 [[apps.children]]를 추가)
 
 [[apps]]
 name = "Discord"

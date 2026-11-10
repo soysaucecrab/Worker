@@ -76,7 +76,9 @@ hud --dump com.kakao.KakaoTalkMac      # 그 앱의 최근 알림 원본 필드 
 - 카카오톡이나 Slack에서 "알림에 메시지 내용 표시"를 꺼 두면 본문 대신 "새 메시지" 같은 문구만 보여요.
 - Claude Code hook은 설치 후 **새로 시작한 세션부터** 적용돼요.
 - Claude Code를 Esc로 중단하면 완료 신호가 오지 않아 "작업 중"으로 남을 수 있어요. 15분 동안 신호가 없으면 `?`로 표시되고, `c`로 정리할 수 있어요.
-- iCampus를 쓰려면 Canvas 개인 액세스 토큰이 필요해요 (M3에서 연동). 설정의 `[icampus] enabled`로 켜고 끌 수 있어요.
+- iCampus(canvas.skku.edu) 마감은 Canvas 개인 액세스 토큰으로 읽어요. canvas.skku.edu → 계정 → 설정 → `+ 새 액세스 토큰`으로 발급한 뒤 키체인에 넣으세요: `security add-generic-password -a "$USER" -s hud.icampus -w` (실행하면 값을 물어봐요). 설정 파일엔 토큰을 넣지 마세요. `[icampus] enabled`로 켜고 끄고, `hud --doctor`로 연결을 확인해요.
+- iCampus 패널은 과제·퀴즈·토론 마감과 공지를 보여줘요. **동영상 강의 시청 현황은 표준 API로 못 가져와서**(성균관대 LearningX가 로그인 세션 쿠키로만 주기 때문) 상태 칸이 `—`이고, 동영상 강의 마감 자체가 안 보일 수 있어요.
+- `hud --doctor`에서 "iCampus 연결의 CA 인증서를 찾지 못함"이 뜨면, python.org용 `Install Certificates.command`를 한 번 실행하면 돼요.
 
 ## 제거
 
@@ -101,6 +103,7 @@ ruff check .                             # 린트
 | `hud.py` | 진입점, 명령줄, Textual 앱과 패널 그리기, `--doctor` |
 | `collectors.py` | Dock 배지, 알림 센터 DB, EventKit, Claude 상태 수집, 데모 데이터 |
 | `config.py` | 설정 읽기·검증·v0 호환 |
+| `icampus.py` | iCampus(Canvas) API 호출·항목 변환·캐시 |
 | `state.py` | `state.json` 읽기·쓰기 (펼침·선택·봤음) |
 | `tree.py` | 앱 트리 모델 (전체·부모·리프 노드, 새 알림 수) |
 | `claude_hook.py` | Claude Code hook. 세션 상태를 `~/.hud/claude/`에 기록 |

@@ -32,7 +32,7 @@ echo "▸ 패키지 설치 (textual, pyobjc EventKit)"
 "${PIP[@]}" "textual>=1.0" "pyobjc-framework-EventKit"
 
 cp "$SRC/hud.py" "$SRC/collectors.py" "$SRC/config.py" "$SRC/state.py" "$SRC/tree.py" \
-   "$SRC/claude_hook.py" "$SRC/install_hooks.py" "$HUD_HOME/"
+   "$SRC/matching.py" "$SRC/icampus.py" "$SRC/claude_hook.py" "$SRC/install_hooks.py" "$HUD_HOME/"
 if [ ! -f "$HUD_HOME/config.toml" ]; then
   cp "$SRC/config.toml" "$HUD_HOME/config.toml"
   echo "▸ 설정 파일 생성: $HUD_HOME/config.toml"

@@ -41,6 +41,7 @@ from collectors import (
     read_claude_sessions,
 )
 from config import CLAUDE_STATE_DIR, Config, ConfigError, load_config
+from icampus import IcampusClient, check_auth
 from matching import OTHER
 from state import State, load_state, save_state
 from tree import ALL_KEY, Node, build_tree
@@ -64,6 +65,11 @@ class Collector(threading.Thread):
         self.ek = None if demo else EventKitReader()
         self.ek_ready = False
         self.notif = None if demo else NotificationReader()
+        self.icampus = None
+        if not demo and cfg.icampus.enabled:
+            isrc = next((s for s in cfg.sources if s.is_icampus), None)
+            if isrc is not None:
+                self.icampus = IcampusClient(cfg.icampus, isrc.name)
 
     def snapshot(self) -> Snapshot:
         with self._lock:
@@ -94,6 +100,7 @@ class Collector(threading.Thread):
         cfg = self.cfg
         next_slow = 0.0
         events, todos = [], []
+        ic_items, ic_anns = [], []
         errors: dict[str, str] = {}
         while not self.stopped.is_set():
             forced = self.wake.is_set()
@@ -123,9 +130,14 @@ class Collector(threading.Thread):
                     errors["events"] = errors["todos"] = msg
                     next_slow = now + 1
 
+            if self.icampus is not None:
+                ic_items, ic_anns, ierr = self.icampus.poll(now)
+                errors["icampus"] = ierr or ""
+
             with self._lock:
-                self._snap = Snapshot(badges, notifs, events, todos, claude,
-                                      {k: v for k, v in errors.items() if v}, time.time())
+                self._snap = Snapshot(badges, notifs + ic_anns, events, todos, claude,
+                                      {k: v for k, v in errors.items() if v}, time.time(),
+                                      icampus=ic_items)
             self.wake.wait(1.5)
 
 
@@ -896,6 +908,18 @@ def doctor(cfg: Config) -> int:
               + ("설치됨" if installed else "없음 (python install_hooks.py 실행)"))
     sessions, _ = read_claude_sessions()
     con.print(f"{ok if sessions else '[yellow]·[/]'} 기록된 세션 {len(sessions)}개 ({CLAUDE_STATE_DIR})")
+
+    con.rule("iCampus")
+    if not cfg.icampus.enabled:
+        con.print("[dim]-[/] 꺼짐 (config.toml의 [icampus] enabled = true 로 켜세요)")
+    else:
+        probe = check_auth(cfg.icampus)
+        if probe.error:
+            con.print(f"{bad} {probe.error}")
+        elif probe.status == 200:
+            con.print(f"{ok} 토큰 유효 — GET {cfg.icampus.base_url}/api/v1/users/self → 200")
+        else:
+            con.print(f"{bad} 토큰 확인 실패 (HTTP {probe.status})")
     return 0
 
 

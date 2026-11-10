@@ -429,18 +429,27 @@ planner item에서 쓰는 필드: `plannable_type`, `plannable.title`, `plannabl
 | `assignment` | 과제 | `submissions.submitted`면 `제출 완료`(지각이면 `지각 제출`), `graded`면 `채점 완료`, `missing`이면 `미제출`(빨강), 그 외 `미제출` |
 | `quiz` | 퀴즈 | 제출했으면 `응시 완료`, 아니면 `미응시` |
 | `discussion_topic` | 토론 | 제출했으면 `참여 완료`, 아니면 `미참여` |
-| 동영상 강의 | 강의 | `k/n 시청` (7.6.4) |
+| 동영상 강의 | 강의 | 상태 칸 `—` (7.6.4). PAT만으로는 시청 수·마감을 못 얻을 수 있음 |
 | `announcement` | — | 공지로 분류해 앱 트리와 알림 패널로 보냄 |
 | `calendar_event`, `planner_note`, `wiki_page` | — | v1에서는 무시 |
 
 완료 여부: 상태가 `제출 완료`, `지각 제출`, `채점 완료`, `응시 완료`, `참여 완료`, 또는 시청 `n/n`이면 완료다.
 
-#### 7.6.4 동영상 강의 시청 현황
+#### 7.6.4 동영상 강의 시청 현황 (S2 스파이크 결과, 2026-11-10)
 
-표준 Canvas API에는 동영상 시청·출석 정보가 없다. 학교 쪽 별도 기능일 가능성이 높다. 스파이크 S2(14장)에서 조사한다.
+표준 Canvas API에는 동영상 시청·출석 정보가 없다. 성균관대는 **LearningX** 플러그인으로 이 기능을 제공한다. 크롬 확장 iCampus Check V2(`github.com/moseoridev/iCampusCheck`, 명시 라이선스 없음 — 코드는 참고만, 복사하지 않음)의 소스로 확인한 경로:
 
-- 참고: 크롬 확장 iCampus Check V2 (MIT, `github.com/moseoridev/iCampusCheck`)는 canvas.skku.edu에서 강의·과제 마감과 출결/학습 현황을 가져온다. 어떤 엔드포인트를 쓰는지 확인한다.
-- 가져올 수 없으면 강의 항목은 상태 칸을 `—`로 두고 마감만 보여준다.
+| 용도 | 요청 | 인증 |
+|---|---|---|
+| 즐겨찾기 과목 | `GET /api/v1/users/self/favorites/courses` | 세션 쿠키 (표준 Canvas) |
+| 강의/과제 모듈 | `GET /learningx/api/v1/courses/{course_id}/modules` | `Authorization: Bearer <xn_api_token>` |
+
+- 응답 `module_items[]`의 필드: `content_data.due_at`·`content_data.unlock_at`(마감·열람), `use_attendance`(true면 출석 집계 대상 = 동영상 강의), `attendance_status`(`"attendance"`이면 출석/시청 완료), `content_type`·`completed`(과제). 응답 앞에 붙는 `while(1);`는 떼어낸다.
+- iCampus Check는 `use_attendance && attendance_status !== "attendance"`를 '미시청 강의'로 본다. **완료/미완료 이진값만** 쓰고, 부분 진행(`k/n 시청`)은 가져오지 않는다.
+- **핵심 제약 — `xn_api_token`은 개인 액세스 토큰이 아니다.** 브라우저에서 `/courses/{course_id}/external_tools/5`(LTI 런치)를 열면 발급되는 **세션 쿠키**이며, 로그인된 브라우저 세션(SSO)에 묶여 있다. 7.6.1의 키체인 Canvas PAT(`Authorization: Bearer <PAT>`)로는 이 엔드포인트를 쓸 수 없다.
+- iCampus Check는 동영상 강의의 **마감(`due_at`)도 LearningX modules에서** 가져온다. 즉 동영상 강의는 표준 `planner`/`assignments` 응답에 아예 안 나올 수 있다.
+
+**hud 결론 (v1):** hud는 `urllib` + 키체인 PAT로 도는 헤드리스 앱이라 쿠키·LTI 세션에 묶인 LearningX 데이터를 재현하지 않는 한 쓸 수 없고, 그 재현(쿠키 추출/SSO 런치 모사)은 범위를 벗어나고 깨지기 쉽다. 따라서 **동영상 강의 상태 칸은 `—`로 두고 마감만 보여준다. "k/n 시청"은 데모 전용이고 실데이터로는 채우지 않는다.** M3에서 실제 planner 응답에 동영상 강의가 들어오는지 사용자 맥에서 확인하고, 안 들어오면 과제·퀴즈·토론 마감만 다룬다(15장 결정 8). 나중에 LearningX 연동을 원하면 쿠키 흐름을 모사해야 하므로 보안상 사용자 동의가 필요하다.
 
 #### 7.6.5 토큰을 못 쓸 때의 대안
 
@@ -667,8 +676,8 @@ GroovSide 하위 항목의 `match` 값은 자리표시다. 실제 알림 형식�
 |---|---|---|
 | **M1** 탐색 구조 | 설정 v1 파서와 검증(v0 호환), 앱 트리(전체·부모·리프), Enter 펼치기·접기와 열기, 숫자키·←→ 제거, 알림 패널 선택 연동, 키 안내 줄, `state.json` | 13장의 설정·UI 자동 테스트 통과. `--demo` 스크린샷이 4.1 배치와 일치 |
 | **M2** 지정 방 필터 | 매칭 엔진, `only_children`·`기타`, 보낸 사람 추출, 새 알림 수(창 내 매칭 수, 봤음 처리 없음), `--dump`, `--doctor` 4번 항목 | 매칭·추출·수 테스트 통과. 사용자가 `--dump`로 규칙을 쓴 뒤 지정 방만 보임 |
-| **S1** 스파이크 | 성균관대 학생 토큰 발급 가능 여부 | 결과를 16장 Q3에 기록 |
-| **S2** 스파이크 | 동영상 시청 현황 데이터 출처 (iCampus Check V2 조사) | 결과를 16장 Q4와 7.6.4에 기록 |
+| **S1** 스파이크 (조사 완료, 2026-11-10) | 성균관대 학생 토큰 발급 가능 여부 | Q3에 기록. 최종 yes/no는 사용자 계정 확인 필요 |
+| **S2** 스파이크 (완료, 2026-11-10) | 동영상 시청 현황 데이터 출처 (iCampus Check V2 조사) | Q4·7.6.4에 기록. 결론: 헤드리스로는 불가, 상태 칸 `—` |
 | **M3** iCampus | 키체인 토큰, API 호출과 캐시, 마감 패널, 공지 노드, 주의 띠 3순위, `--doctor` 7번 항목 | iCampus 테스트 통과. 사용자 맥에서 실제 과목 마감이 보임 |
 | **M4** 선택 | Discord 봇, Claude Code 줄 Enter → iTerm2 세션 포커스 | 사용자가 원할 때 진행 |
 
@@ -685,6 +694,7 @@ GroovSide 하위 항목의 `match` 값은 자리표시다. 실제 알림 형식�
 5. 우측 상단 팝업은 끈다. macOS 알림 스타일을 '없음'으로 두고 알림 센터 기록을 읽는다.
 6. 코드 구현은 이 명세서와 CLAUDE.md를 기준으로 Claude Code가 진행한다.
 7. (2026-11-10) hud는 '봤음' 처리를 하지 않는다. 2초 머묾 규칙과 `seen` 저장, `seen_dwell_seconds`를 모두 뺀다. 수는 알림 센터에 현재 남은(창 내) 매칭 알림 수로 센다 (6.3.2).
+8. (2026-11-10, S2) 동영상 강의 시청 현황은 LearningX 세션 쿠키에 묶여 있어 헤드리스 PAT로 못 가져온다. v1에서 hud는 동영상 강의 상태를 추적하지 않는다 — 상태 칸 `—`, 마감만(가능하면) 표시. LearningX 연동은 범위 밖 (7.6.4).
 
 이 문서에서 제안한 것 (사용자 확인 필요):
 
@@ -698,8 +708,8 @@ GroovSide 하위 항목의 `match` 값은 자리표시다. 실제 알림 형식�
 |---|---|---|---|
 | Q1 | 카카오톡 맥 알림에서 단톡방 이름과 보낸 사람이 어느 필드에 들어가는가 | `hud --dump com.kakao.KakaoTalkMac` | 카톡 `match`, `sender` 기본값 |
 | Q2 | GroovSide의 번들 ID와, 알림에 플랫폼(Instagram/Threads/X)이 구분되어 있는가 | `hud --doctor`, `--dump` | 구분이 안 되면 GroovSide는 하위 항목 없는 소스로 |
-| Q3 | 성균관대 iCampus에서 학생이 개인 액세스 토큰을 만들 수 있는가 | 계정 → 설정에서 새 액세스 토큰 버튼 확인 | 막혀 있으면 7.6.5 대안 |
-| Q4 | 동영상 강의 시청 현황을 어디서 가져올 수 있는가 | S2 | 강의 상태 칸 |
+| Q3 | 성균관대 iCampus에서 학생이 개인 액세스 토큰을 만들 수 있는가 | 계정 → 설정에서 새 액세스 토큰 버튼 확인 | **S1 부분 확인(2026-11-10)**: Canvas 기본은 사용자 설정에서 `+ New Access Token` 발급 가능하나, 2024~2025 보안 변경으로 학생 발급을 막는 학교가 늘었다(계정 설정 `Limit personal access token creation to Admins`(2024), `Restrict students from creating personal access tokens`(2025-09)). Instructure는 2027 상반기 토큰 기반 API 폐기 예고. SKKU 전용 정보는 공개돼 있지 않아 **사용자가 canvas.skku.edu → 계정 → 설정에서 `+ 새 액세스 토큰` 버튼 유무로 직접 확인** 필요. 참고로 iCampus Check도 PAT가 아니라 세션 쿠키를 쓴다. 막혀 있으면 7.6.5 ICS 대안 |
+| Q4 | ~~동영상 강의 시청 현황을 어디서 가져올 수 있는가~~ | S2 | **해결(2026-11-10)**: LearningX `GET /learningx/api/v1/courses/{id}/modules`의 `attendance_status`/`use_attendance`. 단 세션 쿠키 `xn_api_token`에 묶여 헤드리스 PAT로는 못 씀 → 동영상 강의 상태 칸은 `—`(7.6.4) |
 | Q5 | ~~카카오톡이 앱에서 읽은 메시지의 알림을 알림 센터에서 지우는가~~ | — | **해결**: hud는 봤음 처리를 하지 않기로 함(15장 결정 7). 수는 알림 센터에 남은 매칭 알림 수로 센다. 실제 앱에서 읽어 알림이 지워지면 자연히 줄어든다 |
 | Q6 | Discord 데스크톱 알림 제목에 서버·채널 이름이 들어가는가 | `hud --dump com.hnc.Discord` | Discord `match` 기본값 |
 

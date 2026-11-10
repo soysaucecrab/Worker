@@ -6,7 +6,6 @@ version = 1
 [general]
 notification_hours = 48            # 몇 시간 전 알림까지 볼지
 show_other_apps = false            # 아래 [[apps]]에 없는 앱의 알림도 '전체' 피드에 보일지
-seen_dwell_seconds = 2             # 노드에 이만큼 머물면 '봤음'으로 처리 (M2)
 calendar_days = 3                  # 오늘부터 며칠치 일정을 볼지
 exclude_calendars = ["생일", "Birthdays", "Siri Suggestions"]
 exclude_reminder_lists = []

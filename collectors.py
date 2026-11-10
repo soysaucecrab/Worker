@@ -18,23 +18,23 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from config import CLAUDE_STATE_DIR, Source
+from matching import classify
 
 COCOA_EPOCH = datetime(2001, 1, 1, tzinfo=UTC)
 
 
 # ───────────────────────── 데이터 모델 ─────────────────────────
 
-def notif_fields(title: str, subtitle: str, body: str, thread: str = "") -> dict[str, str]:
-    """match 규칙(7.3)이 보는 필드 묶음."""
-    return {"title": title, "subtitle": subtitle, "body": body, "thread": thread,
-            "any": " ".join(x for x in (title, subtitle, body) if x)}
-
-
-def source_owns(src: Source, bundle_id: str, fields: dict[str, str]) -> bool:
-    """알림이 이 소스에 속하는지 (번들 ID + 소스 단위 match)."""
-    if not any(fnmatch.fnmatch(bundle_id, pat) for pat in src.bundle_ids):
-        return False
-    return (not src.match) or src.match.matches(fields)
+@dataclass
+class RawNotif:
+    """알림 센터 DB에서 읽은 원시 알림 (매칭 전). --dump가 그대로 보여준다."""
+    bundle: str
+    when: datetime
+    title: str
+    subtitle: str
+    body: str
+    thread: str = ""
+    category: str = ""
 
 
 @dataclass
@@ -156,7 +156,7 @@ class NotificationReader:
     def __init__(self, path: Path | None = None):
         self.path = path or notification_db_path()
         self._sig: tuple | None = None
-        self._cache: list[tuple[str, datetime, str, str, str]] = []
+        self._cache: list[RawNotif] = []
 
     def _signature(self) -> tuple:
         assert self.path
@@ -195,19 +195,19 @@ class NotificationReader:
 
         cutoff = datetime.now(UTC) - timedelta(hours=hours)
         out: list[Notification] = []
-        for bundle, when, title, subt, body in self._cache:
-            if when < cutoff:
+        for r in self._cache:
+            if r.when < cutoff:
                 continue
-            fields = notif_fields(title, subt, body)
-            # M1: 소스까지만 매칭한다. 하위 항목 매칭과 보낸 사람 추출은 M2(matching.py).
-            src = next((s.name for s in sources
-                        if not s.is_icampus and source_owns(s, bundle, fields)), None)
-            if src is None and not show_other:
+            a = classify(sources, r.bundle, r.title, r.subtitle, r.body, r.thread)
+            if a.drop:
+                continue  # only_children에서 어떤 방에도 안 걸린 알림 (6.3.3)
+            if a.source is None and not show_other:
                 continue
-            out.append(Notification(when.astimezone(), bundle, src, title, subt, body))
+            out.append(Notification(r.when.astimezone(), r.bundle, a.source, r.title,
+                                    r.subtitle, a.body, child=a.child, sender=a.sender))
         return out, None
 
-    def _query(self, limit: int):
+    def _query(self, limit: int) -> list[RawNotif]:
         uri = f"file:{self.path}?mode=ro"
         conn = sqlite3.connect(uri, uri=True, timeout=1)
         try:
@@ -218,7 +218,7 @@ class NotificationReader:
             ).fetchall()
         finally:
             conn.close()
-        result = []
+        result: list[RawNotif] = []
         for bundle, delivered, blob in rows:
             try:
                 d = plistlib.loads(blob)
@@ -229,9 +229,12 @@ class NotificationReader:
             if ts is None:
                 continue
             when = COCOA_EPOCH + timedelta(seconds=float(ts))
-            result.append((
+            # thread 키 이름은 macOS 버전에 따라 다를 수 있어 둘 다 본다 (SPEC 7.2).
+            thread = _clean(req.get("thre") or req.get("thrd"))
+            result.append(RawNotif(
                 str(bundle or d.get("app") or "?"), when,
                 _clean(req.get("titl")), _clean(req.get("subt")), _clean(req.get("body")),
+                thread, _clean(req.get("cate")),
             ))
         return result
 
@@ -251,11 +254,62 @@ def list_notification_apps() -> tuple[list[tuple[str, int, str]], str | None]:
     except (sqlite3.Error, PermissionError):
         return [], FDA_HINT
     stats: dict[str, list] = {}
-    for bundle, _when, title, _s, body in rows:
-        entry = stats.setdefault(bundle, [0, title or body])
+    for r in rows:
+        entry = stats.setdefault(r.bundle, [0, r.title or r.body])
         entry[0] += 1
     ordered = sorted(stats.items(), key=lambda kv: -kv[1][0])
     return [(b, n, t) for b, (n, t) in ordered], None
+
+
+def dump_raw(bundle_pattern: str, limit: int = 20) -> tuple[list[RawNotif], str | None]:
+    """hud --dump용: 번들 ID가 맞는 최근 알림의 원시 필드 (SPEC 11)."""
+    path = notification_db_path()
+    if path is None:
+        return [], "알림 DB를 찾지 못함 (macOS 전용 기능)"
+    try:
+        with open(path, "rb"):
+            pass
+    except PermissionError:
+        return [], FDA_HINT
+    except OSError as e:
+        return [], f"알림 DB 열기 실패: {e}"
+    reader = NotificationReader(path)
+    try:
+        rows = reader._query(3000)
+    except (sqlite3.Error, PermissionError):
+        return [], FDA_HINT
+    matched = [r for r in rows if fnmatch.fnmatch(r.bundle, bundle_pattern)]
+    return matched[:limit], None
+
+
+def match_counts(sources: list[Source], days: int = 7) -> tuple[dict, str | None]:
+    """hud --doctor 4번용: 하위 항목별 최근 days일 매칭 개수.
+
+    {(소스이름, 하위이름 또는 None): 개수} 를 돌려준다. '기타'도 하위 이름으로 센다.
+    """
+    path = notification_db_path()
+    if path is None:
+        return {}, "알림 DB를 찾지 못함"
+    try:
+        with open(path, "rb"):
+            pass
+    except (PermissionError, OSError):
+        return {}, FDA_HINT
+    reader = NotificationReader(path)
+    try:
+        rows = reader._query(3000)
+    except (sqlite3.Error, PermissionError):
+        return {}, FDA_HINT
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    counts: dict = {}
+    for r in rows:
+        if r.when < cutoff:
+            continue
+        a = classify(sources, r.bundle, r.title, r.subtitle, r.body, r.thread)
+        if a.source is None or a.drop:
+            continue
+        counts[(a.source, a.child)] = counts.get((a.source, a.child), 0) + 1
+    return counts, None
 
 
 # ───────────────────────── 캘린더 · 미리알림 ─────────────────────────

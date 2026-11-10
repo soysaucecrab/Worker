@@ -6,20 +6,26 @@ from state import State, load_state, save_state
 
 def test_round_trip(tmp_path):
     p = tmp_path / "state.json"
-    st = State(expanded={"카카오톡", "GroovSide"}, selected="카카오톡/학생회 집행부",
-               seen={"카카오톡/학생회 집행부": 123.5})
+    st = State(expanded={"카카오톡", "GroovSide"}, selected="카카오톡/학생회 집행부")
     save_state(st, p)
     back = load_state(p)
     assert back.expanded == {"카카오톡", "GroovSide"}
     assert back.selected == "카카오톡/학생회 집행부"
-    assert back.seen["카카오톡/학생회 집행부"] == 123.5
+
+
+def test_seen_not_persisted(tmp_path):
+    # 봤음 처리를 하지 않으므로 state.json에 seen 키가 없다 (SPEC 6.3.2).
+    import json
+    p = tmp_path / "state.json"
+    save_state(State(expanded={"a"}, selected="a"), p)
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    assert "seen" not in raw
 
 
 def test_missing_file_is_empty(tmp_path):
     st = load_state(tmp_path / "nope.json")
     assert st.expanded == set()
     assert st.selected is None
-    assert st.seen == {}
 
 
 def test_corrupt_file_is_empty(tmp_path):
@@ -35,15 +41,6 @@ def test_toggle():
     assert st.is_expanded("카카오톡")
     assert st.toggle("카카오톡") is False
     assert not st.is_expanded("카카오톡")
-
-
-def test_mark_seen_keeps_latest():
-    st = State()
-    st.mark_seen("n", 100.0)
-    st.mark_seen("n", 50.0)   # 더 과거면 무시
-    assert st.seen["n"] == 100.0
-    st.mark_seen("n", 200.0)
-    assert st.seen["n"] == 200.0
 
 
 def test_save_is_atomic_and_no_raise(tmp_path):

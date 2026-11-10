@@ -31,7 +31,7 @@ _ANSI_COLORS = {
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 GENERAL_KEYS = {
-    "notification_hours", "show_other_apps", "seen_dwell_seconds", "calendar_days",
+    "notification_hours", "show_other_apps", "calendar_days",
     "exclude_calendars", "exclude_reminder_lists", "theme",
 }
 APP_KEYS = {
@@ -131,7 +131,6 @@ class Config:
     sources: list[Source] = field(default_factory=list)
     notification_hours: int = 48
     show_other_apps: bool = False
-    seen_dwell_seconds: float = 2.0
     calendar_days: int = 3
     exclude_calendars: list[str] = field(default_factory=list)
     exclude_reminder_lists: list[str] = field(default_factory=list)
@@ -204,7 +203,6 @@ def _validate(raw: dict, text: str, path: Path) -> Config:
     cfg = Config(
         notification_hours=int(g.get("notification_hours", 48)),
         show_other_apps=bool(g.get("show_other_apps", True if is_v0 else False)),
-        seen_dwell_seconds=float(g.get("seen_dwell_seconds", 2.0)),
         calendar_days=int(g.get("calendar_days", 3)),
         exclude_calendars=list(g.get("exclude_calendars", [])),
         exclude_reminder_lists=list(g.get("exclude_reminder_lists", [])),

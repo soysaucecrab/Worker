@@ -46,7 +46,13 @@ hud를 처음 실행하면 권한 창이 떠요. "허용"을 누르세요. 창�
 hud --doctor
 ```
 
-소스별 연결 상태와, 알림 센터에 기록된 앱의 번들 ID 목록을 보여줘요. GroovSide처럼 번들 ID를 모르는 앱은 여기서 찾아 `~/.hud/config.toml`의 `bundle_ids`에 넣으면 돼요.
+소스별 연결 상태, 하위 항목별 최근 7일 매칭 개수, 알림 센터에 기록된 앱의 번들 ID 목록을 보여줘요. GroovSide처럼 번들 ID를 모르는 앱은 여기서 찾아 `~/.hud/config.toml`의 `bundle_ids`에 넣으면 돼요.
+
+```bash
+hud --dump com.kakao.KakaoTalkMac      # 그 앱의 최근 알림 원본 필드 (title/subtitle/body/thread)
+```
+
+카톡·Discord·GroovSide처럼 "지정한 방·채널만" 보려면, `--dump`로 알림이 어느 필드에 방 이름·보낸 사람을 넣는지 확인한 뒤 `config.toml`의 각 하위 항목 `match`와 소스 `sender`를 맞추면 돼요.
 
 ## 조작
 

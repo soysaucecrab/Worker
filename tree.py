@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from collectors import Notification, Snapshot
 from config import Config, Source
+from matching import OTHER
 from state import State
 
 ALL_KEY = "전체"
@@ -99,7 +100,7 @@ def _leaf_node(src: Source, notifs: list[Notification], snap: Snapshot) -> Node:
 
 def _parent_node(src: Source, notifs: list[Notification], state: State) -> Node:
     mine = _by_source(notifs, src.name)
-    count = sum(len(_by_child(notifs, src.name, c.name)) for c in src.children)
+    count = sum(1 for n in mine if n.child)  # 하위 항목('기타' 포함)에 걸린 것의 합
     return Node(
         key=src.name, kind="source", name=src.name, color=src.color,
         is_parent=True, expanded=state.is_expanded(src.name),
@@ -109,15 +110,26 @@ def _parent_node(src: Source, notifs: list[Notification], state: State) -> Node:
     )
 
 
+def _child_names(src: Source, notifs: list[Notification]) -> list[str]:
+    """설정된 하위 항목 + (알림이 있을 때만) 자동 '기타' (6.3.3)."""
+    names = [c.name for c in src.children]
+    if any(n.child == OTHER for n in _by_source(notifs, src.name)):
+        names.append(OTHER)
+    return names
+
+
 def _child_nodes(src: Source, notifs: list[Notification]) -> list[Node]:
+    names = _child_names(src, notifs)
+    by_name = {c.name: c for c in src.children}
     nodes = []
-    for i, c in enumerate(src.children):
-        mine = _by_child(notifs, src.name, c.name)
+    for i, name in enumerate(names):
+        c = by_name.get(name)
+        mine = _by_child(notifs, src.name, name)
         nodes.append(Node(
-            key=node_key(src.name, c.name), kind="child", name=c.name, color=src.color,
-            depth=1, is_last_child=(i == len(src.children) - 1),
+            key=node_key(src.name, name), kind="child", name=name, color=src.color,
+            depth=1, is_last_child=(i == len(names) - 1),
             new_count=len(mine), latest=mine[0] if mine else None, notifs=mine,
-            source=src, url=c.url or src.url,
+            source=src, url=(c.url if c else None) or src.url,
         ))
     return nodes
 

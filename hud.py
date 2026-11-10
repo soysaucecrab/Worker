@@ -30,7 +30,9 @@ from collectors import (
     Snapshot,
     clear_finished_claude_sessions,
     demo_snapshot,
+    dump_raw,
     list_notification_apps,
+    match_counts,
     notification_db_path,
     open_bundle,
     open_source,
@@ -39,6 +41,7 @@ from collectors import (
     read_claude_sessions,
 )
 from config import CLAUDE_STATE_DIR, Config, ConfigError, load_config
+from matching import OTHER
 from state import State, load_state, save_state
 from tree import ALL_KEY, Node, build_tree
 
@@ -854,6 +857,27 @@ def doctor(cfg: Config) -> int:
         state = "앱이 꺼져 있거나 이름이 다름" if b is None else (f"배지 '{b}'" if b else "배지 없음 (0)")
         con.print(f"{ok if b is not None else bad} {s.name} (process='{s.process}'): {state}")
 
+    con.rule("하위 항목 매칭 (최근 7일)")
+    counts, err = match_counts(cfg.sources)
+    if err:
+        con.print(f"{bad} {err}")
+    else:
+        for s in cfg.sources:
+            if s.is_icampus:
+                continue
+            if s.children:
+                targets = [c.name for c in s.children] + ([] if s.only_children else [OTHER])
+            else:
+                targets = [None]  # 리프 소스: 소스 전체 개수
+            for name in targets:
+                n = counts.get((s.name, name), 0)
+                label = s.name if name is None else f"{s.name} › {name}"
+                if n:
+                    con.print(f"{ok} {label}: {n}개")
+                else:
+                    hint = s.bundle_ids[0] if s.bundle_ids else "<번들ID>"
+                    con.print(f"{bad} {label}: 매칭되는 알림 없음 — hud --dump {hint} 로 형식을 확인하세요")
+
     con.rule("캘린더 · 미리알림")
     ek = EventKitReader()
     if ek.ek is None:
@@ -875,10 +899,32 @@ def doctor(cfg: Config) -> int:
     return 0
 
 
+def dump(bundle_pattern: str, n: int) -> int:
+    """그 앱의 최근 알림 원본 필드를 표로 출력 (매칭 규칙을 쓰기 위한 도구, SPEC 11)."""
+    con = Console()
+    rows, err = dump_raw(bundle_pattern, n)
+    if err:
+        con.print(f"[red]{err}[/]")
+        return 1
+    if not rows:
+        con.print(f"[yellow]{bundle_pattern} 에 맞는 최근 알림이 없어요. hud --doctor로 번들 ID를 확인하세요.[/]")
+        return 0
+    t = RichTable("시각", "title", "subtitle", "body (앞 60자)", "thread", "category", box=None)
+    for r in rows:
+        t.add_row(f"{r.when.astimezone():%m/%d %H:%M}", r.title, r.subtitle,
+                  r.body[:60], r.thread, r.category)
+    con.print(t)
+    con.print("[dim]title/subtitle/body 중 방 이름이 든 칸을 config.toml의 match로, "
+              "보낸 사람이 든 칸을 sender로 쓰세요.[/]")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="hud", description="알림·일정·할 일·iCampus·Claude Code를 한 화면에")
     ap.add_argument("--demo", action="store_true", help="가짜 데이터로 화면 미리보기")
     ap.add_argument("--doctor", action="store_true", help="권한과 설정 점검")
+    ap.add_argument("--dump", metavar="번들ID", help="그 앱의 최근 알림 원본 필드를 표로 출력")
+    ap.add_argument("-n", type=int, default=20, help="--dump에서 보여줄 개수 (기본 20)")
     ap.add_argument("--config", type=Path, help="설정 파일 경로 (기본: ~/.hud/config.toml)")
     args = ap.parse_args()
     try:
@@ -886,6 +932,8 @@ def main() -> int:
     except ConfigError as e:
         print(f"설정 오류: {e}", file=sys.stderr)
         return 1
+    if args.dump:
+        return dump(args.dump, args.n)
     if args.doctor:
         return doctor(cfg)
     HudApp(cfg, demo=args.demo).run()

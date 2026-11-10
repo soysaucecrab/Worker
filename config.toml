@@ -45,7 +45,7 @@ sender = "body_prefix"             # --dump 결과를 보고 확정 (SPEC 16장 
 [[apps]]
 name = "Discord"
 process = "Discord"
-bundle_ids = ["com.hnc.Discord"]
+bundle_ids = ["com.hnc.discord"]
 color = "blue"
 only_children = true
 

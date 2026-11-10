@@ -145,3 +145,13 @@ def test_no_exclude_is_noop():
     src = Source(name="카카오톡", bundle_ids=["com.kakao.KakaoTalkMac"])  # exclude 없음
     a = classify([src], "com.kakao.KakaoTalkMac", "아무개", "", "메시지")
     assert a.source == "카카오톡" and a.drop is False
+
+
+def test_bundle_match_case_insensitive():
+    # 실제 Discord 번들은 com.hnc.discord(소문자)지만 설정이 대문자여도 걸려야 한다
+    disc = Source(name="Discord", bundle_ids=["com.hnc.Discord"])
+    assert classify([disc], "com.hnc.discord", "x", "", "y").source == "Discord"
+    assert classify([disc], "com.hnc.DISCORD", "x", "", "y").source == "Discord"
+    # 와일드카드도 대소문자 무시
+    web = Source(name="Insta", bundle_ids=["com.apple.Safari.WebApp.*"])
+    assert classify([web], "com.apple.safari.webapp.ABC", "x", "", "y").source == "Insta"

@@ -19,9 +19,15 @@ def build_fields(title: str, subtitle: str, body: str, thread: str = "") -> dict
             "any": " ".join(x for x in (title, subtitle, body) if x)}
 
 
+def bundle_match(bundle_id: str, patterns: list[str]) -> bool:
+    """번들 ID가 패턴 중 하나와 맞는지. 번들 ID는 대소문자를 구분하지 않는다 (com.hnc.Discord == com.hnc.discord)."""
+    bl = bundle_id.lower()
+    return any(fnmatch.fnmatch(bl, pat.lower()) for pat in patterns)
+
+
 def source_owns(src: Source, bundle_id: str, fields: dict[str, str]) -> bool:
     """알림이 이 소스에 속하는지 (번들 ID 와일드카드 + 소스 단위 match)."""
-    if not any(fnmatch.fnmatch(bundle_id, pat) for pat in src.bundle_ids):
+    if not bundle_match(bundle_id, src.bundle_ids):
         return False
     return (not src.match) or src.match.matches(fields)
 

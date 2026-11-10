@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import fnmatch
 import sys
 import threading
 import time
@@ -42,7 +41,7 @@ from collectors import (
 )
 from config import CLAUDE_STATE_DIR, Config, ConfigError, load_config
 from icampus import IcampusClient, check_auth
-from matching import OTHER
+from matching import OTHER, bundle_match
 from state import State, load_state, save_state
 from tree import ALL_KEY, Node, build_tree
 
@@ -853,7 +852,7 @@ def doctor(cfg: Config) -> int:
         t = RichTable("번들 ID", "개수", "최근 알림", "config.toml에 연결된 앱", box=None)
         for bundle, n, title in apps[:30]:
             owner = next((s.name for s in cfg.sources
-                          if any(fnmatch.fnmatch(bundle, p) for p in s.bundle_ids)), "")
+                          if bundle_match(bundle, s.bundle_ids)), "")
             t.add_row(bundle, str(n), (title or "")[:40], owner or "[dim]-[/]")
         con.print(t)
         con.print("[dim]연결 안 된 앱을 보려면 위 번들 ID를 config.toml의 bundle_ids에 넣으세요.[/]")

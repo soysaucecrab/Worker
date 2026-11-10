@@ -5,7 +5,6 @@
 """
 from __future__ import annotations
 
-import fnmatch
 import json
 import plistlib
 import re
@@ -18,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from config import CLAUDE_STATE_DIR, Source
-from matching import classify
+from matching import bundle_match, classify
 
 COCOA_EPOCH = datetime(2001, 1, 1, tzinfo=UTC)
 
@@ -278,7 +277,7 @@ def dump_raw(bundle_pattern: str, limit: int = 20) -> tuple[list[RawNotif], str 
         rows = reader._query(3000)
     except (sqlite3.Error, PermissionError):
         return [], FDA_HINT
-    matched = [r for r in rows if fnmatch.fnmatch(r.bundle, bundle_pattern)]
+    matched = [r for r in rows if bundle_match(r.bundle, [bundle_pattern])]
     return matched[:limit], None
 
 
